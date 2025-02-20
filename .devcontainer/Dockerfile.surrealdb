@@ -1,0 +1,4 @@
+FROM surrealdb/surrealdb:latest AS source
+
+FROM debian:stable-slim
+COPY --from=source /surreal /usr/bin/surreal

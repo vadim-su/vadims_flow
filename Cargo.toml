@@ -1,0 +1,24 @@
+[package]
+name = "vadims_flow"
+version = "0.1.0"
+edition = "2021"
+
+
+build = "build.rs"
+
+[dependencies]
+actix-web = "4.9.0"
+chrono = "0.4.39"
+env_logger = "0.11.6"
+log = "0.4.25"
+serde = { version = "1.0.217", features = ["derive"] }
+surrealdb = "2.2.1"
+utoipa = { version = "5.3.1", features = ["actix_extras"] }
+utoipa-actix-web = "0.1.2"
+utoipa-scalar = { version = "0.3.0", features = ["actix-web"] }
+utoipa-swagger-ui = { version = "9.0.0", features = ["actix-web"] }
+
+
+[build-dependencies]
+anyhow = "1.0.82"
+vergen = { version = "9.0.3", features = ["build", "cargo", "rustc", "si"] }
