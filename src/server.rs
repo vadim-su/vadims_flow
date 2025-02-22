@@ -1,30 +1,45 @@
 use actix_web::body::MessageBody;
 use actix_web::dev::{ServiceFactory, ServiceRequest, ServiceResponse};
 use actix_web::middleware::Logger;
-use actix_web::{App, HttpServer};
+use actix_web::{web, App, HttpServer};
+use apistos::app::{BuildConfig, OpenApiWrapper};
+use apistos::spec::Spec;
+use apistos::ScalarConfig;
 use std::error::Error;
-use utoipa_actix_web::AppExt;
-use utoipa_scalar::{Scalar, Servable};
+use std::net::IpAddr;
+use surrealdb::engine::any::Any;
+use surrealdb::engine::local::Db;
+use surrealdb::Surreal;
 
 use crate::logger::{init_logging, log_app_info};
+use crate::resources::info;
+use crate::views;
 
 #[derive(Clone)]
-pub struct Server {}
+pub struct Server {
+    pub db: Surreal<Db>,
+}
 
 impl Server {
-    pub async fn serve(self, addr: String, port: u16) -> Result<(), Box<dyn Error>> {
+    pub async fn serve(self, addr: IpAddr, port: u16) -> Result<(), Box<dyn Error>> {
         init_logging(log::LevelFilter::Info);
         log_app_info();
 
-        HttpServer::new(move || self.clone().make_app())
-            .bind((addr, port))?
-            .run()
-            .await?;
+        let db = self.db.clone();
+
+        HttpServer::new(move || {
+            let db = db.clone();
+            self.clone().make_app(db)
+        })
+        .bind((addr, port))?
+        .run()
+        .await?;
         Ok(())
     }
 
     fn make_app(
         self,
+        db: Surreal<Db>,
     ) -> App<
         impl ServiceFactory<
             ServiceRequest,
@@ -34,12 +49,26 @@ impl Server {
             Error = actix_web::error::Error,
         >,
     > {
-        let (app, api) = App::new()
-            .into_utoipa_app()
-            .map(|app| app.wrap(Logger::default()))
-            // .service()
-            .split_for_parts();
-
-        return app.service(Scalar::with_url("/docs", api));
+        let info = info::Info::default();
+        let spec = Spec {
+            info: apistos_models::info::Info {
+                title: "Bredis API".to_string(),
+                version: info.version.clone(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        App::new()
+            .app_data(web::Data::new(db))
+            .document(spec)
+            .wrap(Logger::default())
+            .configure(|cfg| {
+                views::info::configure(cfg);
+                views::posts::configure(cfg);
+            })
+            .build_with(
+                "/openapi.json",
+                BuildConfig::default().with(ScalarConfig::new(&"/docs")),
+            )
     }
 }

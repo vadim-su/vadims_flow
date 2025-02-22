@@ -1,37 +1,32 @@
-use std::sync::Arc;
+use schemars::JsonSchema;
 
-use actix_web::{web, HttpResponse, Responder};
+use actix_web::{
+    web::{Data, Json},
+    Responder,
+};
+use apistos::web;
+use apistos::{api_operation, ApiComponent};
 use serde::Serialize;
 
 use crate::resources::info::Info;
 
-#[derive(Clone, Serialize, utoipa::ToSchema)]
+#[derive(Clone, Serialize, JsonSchema, ApiComponent)]
 struct InfoResponse {
     version: String,
     rustc: String,
     build_date: String,
 }
 
-struct Service {
-    info: Info,
+pub fn configure(cfg: &mut web::ServiceConfig) {
+    cfg.app_data(Data::new(Info::default()))
+        .service(web::resource("/info").route(web::get().to(get)));
 }
-impl Service {
-    pub fn new(info: Info) -> Arc<Self> {
-        Arc::new(Self { info })
-    }
 
-    pub fn configurate(self: Arc<Self>, cfg: &mut web::ServiceConfig) {
-        cfg.service(web::resource("/info").route(web::get().to(move || {
-            let self_clone = self.clone();
-            async move { self_clone.get().await }
-        })));
-    }
-
-    pub async fn get(&self) -> impl Responder {
-        web::Json(InfoResponse {
-            version: self.info.version.clone(),
-            rustc: self.info.rustc.clone(),
-            build_date: self.info.build_date.clone(),
-        })
-    }
+#[api_operation(summary = "Get information about the application")]
+pub async fn get(info: Data<Info>) -> impl Responder {
+    return Json(InfoResponse {
+        version: info.version.clone(),
+        rustc: info.rustc.clone(),
+        build_date: info.build_date.clone(),
+    });
 }
